@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Registration - Smart Alkansya</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <style>
+    :root {
+      --bg:       #0a0a0f;
+      --surface:  #111118;
+      --border:   #1e1e2e;
+      --accent:   #00e5a0;
+      --accent2:  #0077ff;
+      --danger:   #ff4560;
+      --text:     #e8e8f0;
+      --muted:    #555570;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Syne', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 30px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: #00d490;
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .message {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .message.success {
+      background: rgba(0, 229, 160, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(0, 229, 160, 0.3);
+    }
+
+    .message.error {
+      background: rgba(255, 69, 96, 0.15);
+      color: var(--danger);
+      border: 1px solid rgba(255, 69, 96, 0.3);
+    }
+
+    .message.show {
+      display: block;
+    }
+
+    .instructions {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 30px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .instructions strong {
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⬡ Card Registration</h1>
+    <p class="subtitle">Register RFID cards for automatic login in Firestore</p>
+
+    <div id="message" class="message"></div>
+
+    <div class="form-group">
+      <label for="userInput">User ID / Username</label>
+      <input type="text" id="userInput" placeholder="e.g. admin" />
+    </div>
+
+    <div class="form-group">
+      <label for="rfidInput">RFID Card UID</label>
+      <input type="text" id="rfidInput" placeholder="Tap card here or enter UID manually" autofocus />
+    </div>
+
+    <button onclick="registerCard()">Register Card</button>
+
+    <div class="instructions">
+      <strong>How to use:</strong>
+      <ol style="margin-left: 20px; margin-top: 8px;">
+        <li>Enter the Firebase user document ID or username</li>
+        <li>Tap the RFID card or enter its UID</li>
+        <li>Click "Register Card"</li>
+        <li>Card is now saved in Firestore under authorizedUids</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey:            "AIzaSyBoKkbBZwJd-AxGZHg3ENiQEr-MGqdKgKs",
+      authDomain:        "cardconnect-c94ae-931d2.firebaseapp.com",
+      projectId:         "cardconnect-c94ae-931d2",
+      storageBucket:     "cardconnect-c94ae-931d2.firebasestorage.app",
+      messagingSenderId: "546545921325",
+      appId:             "1:546545921325:web:971112fae459e57244b7a4"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const rfidInput = document.getElementById('rfidInput');
+
+    rfidInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        registerCard();
+      }
+    });
+
+    function normalizeCardValue(value) {
+      return String(value || '').trim().replace(/[-\s:]/g, '').toUpperCase();
+    }
+
+    function showMessage(text, type) {
+      const msgEl = document.getElementById('message');
+      msgEl.textContent = text;
+      msgEl.className = `message ${type} show`;
+      setTimeout(() => {
+        msgEl.classList.remove('show');
+      }, 4000);
+    }
+
+    async function findUserDoc(userInput) {
+      const query = String(userInput || '').trim();
+      if (!query) return null;
+
+      const directDoc = await db.collection('users').doc(query).get();
+      if (directDoc.exists) return directDoc;
+
+      const usersSnap = await db.collection('users').get();
+      const lowered = query.toLowerCase();
+      for (const doc of usersSnap.docs) {
+        const data = doc.data() || {};
+        const values = [doc.id, data.username, data.name, data.fullName].filter(Boolean).map(v => String(v).toLowerCase());
+        if (values.includes(lowered)) return doc;
+      }
+
+      return null;
+    }
+
+    async function registerCard() {
+      const user = document.getElementById('userInput').value.trim();
+      const rfid = normalizeCardValue(document.getElementById('rfidInput').value);
+
+      if (!user || !rfid) {
+        showMessage('Please enter both username and RFID', 'error');
+        return;
+      }
+
+      try {
+        const userDoc = await findUserDoc(user);
+
+        if (!userDoc) {
+          showMessage('User not found in Firestore', 'error');
+          return;
+        }
+
+        const data = userDoc.data() || {};
+        const authorizedUids = Array.isArray(data.authorizedUids) ? data.authorizedUids : [];
+        const normalizedExisting = authorizedUids.map(normalizeCardValue);
+
+        if (normalizedExisting.includes(rfid)) {
+          showMessage(`Card already registered for ${userDoc.id}`, 'error');
+          return;
+        }
+
+        authorizedUids.push(rfid);
+        await userDoc.ref.set({
+          authorizedUids,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        showMessage(`✓ Card registered: ${rfid} → ${userDoc.id}`, 'success');
+        document.getElementById('userInput').value = '';
+        document.getElementById('rfidInput').value = '';
+        document.getElementById('rfidInput').focus();
+      } catch (error) {
+        showMessage('Error: ' + error.message, 'error');
+      }
+    }
+  </script>
+</body>
+</html>
